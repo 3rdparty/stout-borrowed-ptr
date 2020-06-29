@@ -1,4 +1,6 @@
+#include <atomic>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -6,8 +8,10 @@
 
 #include "stout/borrowed_ptr.h"
 
+using std::atomic;
 using std::function;
 using std::string;
+using std::thread;
 using std::unique_ptr;
 using std::vector;
 
@@ -59,14 +63,25 @@ TEST(BorrowTest, Multiple)
 
   vector<borrowed_ptr<string>> borrows = borrow(4, &s, mock.AsStdFunction());
 
-  borrows.pop_back();
-  borrows.pop_back();
-  borrows.pop_back();
+  vector<thread> threads;
 
-  borrowed_ptr<string> borrowed = std::move(borrows.back());
+  atomic<bool> wait(true);
 
-  borrows.pop_back();
+  while (!borrows.empty()) {
+    threads.push_back(thread([&wait, borrowed = std::move(borrows.back())]() {
+      while (wait.load()) {}
+      // ... destructor will invoke borrowed.relinquish().
+    }));
+
+    borrows.pop_back();
+  }
 
   EXPECT_CALL(mock, Call(&s))
     .Times(1);
+
+  wait.store(false);
+
+  for (auto&& thread : threads) {
+    thread.join();
+  }
 }
