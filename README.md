@@ -89,7 +89,7 @@ then you can do:
 ```cpp
 std::unique_ptr<Data> data = ...;
 
-auto borrowed = stout::borrow(std::move(data), [](auto&& data) {
+auto borrowed = stout::borrow(std::move(data), [](std::unique_ptr<Data>&& data) {
   // Can now use 'data' knowing there are no borrowers.
 });
 ```
