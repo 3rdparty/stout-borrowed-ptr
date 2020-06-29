@@ -17,11 +17,19 @@ public:
   {}
 
   // NOTE: requires 'Deleter' to be copyable (for now).
-  template <typename U, typename Deleter>
-  borrowed_ptr(std::unique_ptr<U, Deleter>&& u)
+  template <typename U, typename Deleter, typename F>
+  borrowed_ptr(std::unique_ptr<U, Deleter>&& u, F&& f)
     : borrowed_ptr(
         u.release(),
-        [deleter = u.get_deleter()](auto* t) { deleter(t); })
+        [deleter = u.get_deleter(), f = std::forward<F>(f)](auto* u) {
+          f(std::unique_ptr<U, Deleter>(u, deleter));
+        })
+  {}
+
+  // NOTE: requires 'Deleter' to be copyable (for now).
+  template <typename U, typename Deleter>
+  borrowed_ptr(std::unique_ptr<U, Deleter>&& u)
+    : borrowed_ptr(std::move(u), [](auto&&) {})
   {}
 
   template <typename H>
@@ -63,6 +71,13 @@ borrowed_ptr<T> borrow(T* t, F&& f)
 }
 
 
+template <typename T, typename Deleter, typename F>
+borrowed_ptr<T> borrow(std::unique_ptr<T, Deleter>&& t, F&& f)
+{
+  return borrowed_ptr<T>(std::move(t), std::forward<F>(f));
+}
+
+
 template <typename T, typename Deleter>
 borrowed_ptr<T> borrow(std::unique_ptr<T, Deleter>&& t)
 {
@@ -89,6 +104,25 @@ std::vector<borrowed_ptr<T>> borrow(size_t n, T* t, F&& f)
   }
 
   return result;
+}
+
+
+template <typename T, typename Deleter, typename F>
+std::vector<borrowed_ptr<T>> borrow(size_t n, std::unique_ptr<T, Deleter>&& t, F&& f)
+{
+  return borrow(
+      n,
+      t.release(),
+      [deleter = t.get_deleter(), f = std::forward<F>(f)](auto* t) {
+        f(std::unique_ptr<T, Deleter>(t, deleter));
+      });
+}
+
+
+template <typename T, typename Deleter>
+std::vector<borrowed_ptr<T>> borrow(size_t n, std::unique_ptr<T>&& t)
+{
+  return borrow(n, std::move(t), [](auto&&) {});
 }
 
 } // namespace stout {
