@@ -1,0 +1,10 @@
+load("@rules_cc//cc:defs.bzl", "cc_test")
+
+cc_test(
+    name = "borrow",
+    srcs = ["borrow.cc"],
+    deps = [
+        "//:borrowed_ptr",
+        "@gtest//:gtest_main",
+    ],
+)
