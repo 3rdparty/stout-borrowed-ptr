@@ -1,3 +1,10 @@
+#pragma once
+
+#include <atomic>
+#include <functional>
+#include <memory>
+#include <vector>
+
 namespace stout {
 
 template <typename T>
