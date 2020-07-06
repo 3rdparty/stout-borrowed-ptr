@@ -11,10 +11,11 @@ template <typename T>
 class borrowed_ptr
 {
 public:
+  borrowed_ptr() {}
+
   template <typename U, typename F>
   borrowed_ptr(U* u, F&& f)
-    : t_(u, std::forward<F>(f))
-  {}
+    : t_(u, std::forward<F>(f)) {}
 
   // NOTE: requires 'Deleter' to be copyable (for now).
   template <typename U, typename Deleter, typename F>
@@ -23,17 +24,16 @@ public:
         u.release(),
         [deleter = u.get_deleter(), f = std::forward<F>(f)](auto* u) {
           f(std::unique_ptr<U, Deleter>(u, deleter));
-        })
-  {}
+        }) {}
 
   // NOTE: requires 'Deleter' to be copyable (for now).
   template <typename U, typename Deleter>
   borrowed_ptr(std::unique_ptr<U, Deleter>&& u)
-    : borrowed_ptr(std::move(u), [](auto&&) {})
-  {}
+    : borrowed_ptr(std::move(u), [](auto&&) {}) {}
 
   template <typename H>
-  friend H AbslHashValue(H h, const borrowed_ptr& that) {
+  friend H AbslHashValue(H h, const borrowed_ptr& that)
+  {
     return H::combine(std::move(h), that.t_);
   }
 
