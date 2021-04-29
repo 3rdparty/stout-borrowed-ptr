@@ -2,6 +2,6 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
     name = "borrowed_ptr",
-    hdrs = ["stout/borrowed_ptr.h"],
+    hdrs = ["stout/borrowed_ptr.h", "stout/borrowable.h"],
     visibility = ["//visibility:public"],
 )

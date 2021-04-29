@@ -1,6 +1,17 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
+    name = "stout-stateful-tally",
+    url = "https://github.com/3rdparty/stout-stateful-tally/archive/0.1.0.tar.gz",
+    sha256 = "66db697c2b66d3998870c2ccdd2aef79295431767f286597d1484d4d2b7f97b9",
+    strip_prefix = "stout-stateful-tally-0.1.0",
+)
+
+load("@stout-stateful-tally//bazel:stout_stateful_tally_deps.bzl", "stout_stateful_tally_deps")
+
+stout_stateful_tally_deps()
+
+http_archive(
     name = "gtest",
     url = "https://github.com/google/googletest/archive/release-1.10.0.tar.gz",
     sha256 = "9dc9157a9a1551ec7a7e43daea9a694a0bb5fb8bec81235d8a1e6ef64c716dcb",
