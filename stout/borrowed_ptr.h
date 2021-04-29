@@ -57,6 +57,11 @@ public:
     return t_.operator*();
   }
 
+  operator bool() const
+  {
+    return t_.operator bool();
+  }
+
   // TODO(benh): operator[]
 
 private:
