@@ -31,7 +31,7 @@ public:
   {
     auto state = State::Borrowing;
     if (!tally_.update(state, State::Waiting)) {
-      throw std::runtime_error("Invalid state encountered");
+      std::abort(); // Invalid state encountered.
     } else {
       // // NOTE: it's possible that we'll block forever if exceptions
       // // were thrown and destruction was not successful.
