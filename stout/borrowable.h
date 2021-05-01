@@ -20,7 +20,7 @@ template <typename T>
 class borrowable
 {
 public:
-  borrowable(T&& t)
+  borrowable(T t)
     : t_(std::move(t)), tally_(State::Borrowing) {}
 
   template <typename... Args>
