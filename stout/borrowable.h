@@ -27,6 +27,9 @@ public:
   borrowable(Args&&... args)
     : t_(std::forward<Args>(args)...), tally_(State::Borrowing) {}
 
+  borrowable(const borrowable& that)
+    : t_(that.t_), tally_(State::Borrowing) {}
+
   ~borrowable()
   {
     auto state = State::Borrowing;
