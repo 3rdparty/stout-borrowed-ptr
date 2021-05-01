@@ -28,7 +28,7 @@ public:
     : t_(std::forward<Args>(args)...), tally_(State::Borrowing) {}
 
   borrowable(borrowable&& that)
-    : t_(std::move(that.t_), tally_(std::move(that.tally_)) {}
+    : t_(std::move(that.t_)), tally_(std::move(that.tally_)) {}
 
   ~borrowable()
   {
