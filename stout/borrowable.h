@@ -77,6 +77,11 @@ public:
     }
   }
 
+  size_t borrows()
+  {
+    return tally_.count();
+  }
+
   T* get() { return &t_; }
 
   T* operator->() { return get(); }
