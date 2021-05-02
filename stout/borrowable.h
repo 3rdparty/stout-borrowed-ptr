@@ -20,9 +20,6 @@ template <typename T>
 class borrowable
 {
 public:
-  borrowable(T t)
-    : t_(std::move(t)), tally_(State::Borrowing) {}
-
   template <typename... Args>
   borrowable(Args&&... args)
     : t_(std::forward<Args>(args)...), tally_(State::Borrowing) {}
@@ -47,21 +44,37 @@ public:
   }
 
   template <typename F>
-  borrowed_ptr<T> borrow(F f)
+  bool watch(F&& f)
   {
-    auto state = State::Borrowing;
-    if (tally_.increment(state)) {
-      return stout::borrow(&t_, [this, f = std::move(f)](auto* t) {
-        tally_.decrement();
-        f(t);
-      });
-    }
-    return borrowed_ptr<T>();
+    auto [state, count] = tally_.wait([](auto, auto) { return true; });
+
+    do {
+      if (state == State::Watching) {
+        return false;
+      } else if (count == 0) {
+        f();
+        return true;
+      }
+
+      assert(state == State::Borrowing);
+
+    } while (!tally_.update(state, count, State::Watching, count + 1));
+
+    watch_ = std::move(f);
+
+    relinquish();
+
+    return true;
   }
 
   borrowed_ptr<T> borrow()
   {
-    return borrow([](auto*) {});
+    auto state = State::Borrowing;
+    if (tally_.increment(state)) {
+      return borrowed_ptr<T>(this);
+    } else {
+      return borrowed_ptr<T>();
+    }
   }
 
   T* get() { return &t_; }
@@ -71,14 +84,57 @@ public:
   T& operator*() { return t_; }
 
 private:
+  template <typename>
+  friend class borrowed_ptr;
+
+  void relinquish()
+  {
+    auto [state, count] = tally_.decrement();
+
+    if (state == State::Watching && count == 0) {
+      // Move out 'watch_' in case it gets reset either in the
+      // callback or because a concurrent call to 'borrow()' occurs
+      // after we've updated the tally below.
+      auto f = std::move(watch_);
+      watch_ = std::function<void()>();
+
+      tally_.update(state, State::Borrowing);
+
+      // At this point a call to 'borrow()' may mean that there are
+      // outstanding borrowed_ptr's when the watch callback gets
+      // invoked and thus it's up to the users of this abstraction to
+      // avoid making calls to 'borrow()' until after the watch
+      // callback gets invoked if they want to guarantee that there
+      // are no outstanding borrowed_ptr's.
+
+      f();
+    }
+  }
+
+  borrowed_ptr<T> reborrow()
+  {
+    auto [state, count] = tally_.wait([](auto, auto) { return true; });
+
+    assert(count > 0);
+
+    do {
+      assert(state != State::Waiting);
+    } while (!tally_.increment(state));
+
+    return borrowed_ptr<T>(this);
+  }
+
   T t_;
 
   enum class State : uint8_t {
     Borrowing,
+    Watching,
     Waiting,
   };
 
   stateful_tally<State> tally_;
+
+  std::function<void()> watch_;
 };
 
 } // namespace stout {
