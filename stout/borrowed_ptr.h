@@ -60,13 +60,13 @@ public:
 
   T* operator->() const
   {
-    assert(borrowable_ == nullptr);
+    assert(borrowable_ != nullptr);
     return borrowable_->operator->();
   }
 
   T& operator*() const
   {
-    assert(borrowable_ == nullptr);
+    assert(borrowable_ != nullptr);
     return borrowable_->operator*();
   }
 

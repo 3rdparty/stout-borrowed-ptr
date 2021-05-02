@@ -27,6 +27,12 @@ public:
   borrowable(const borrowable& that)
     : t_(that.t_), tally_(State::Borrowing) {}
 
+  // Explicitly marking as non-moveable even though at the time of
+  // this comment the use of 'stateful_tally' ensures this is
+  // non-moveable. What would it mean to be able to borrow a pointer
+  // to something that might move!?
+  borrowable(borrowable&& that) = delete;
+
   ~borrowable()
   {
     auto state = State::Borrowing;
