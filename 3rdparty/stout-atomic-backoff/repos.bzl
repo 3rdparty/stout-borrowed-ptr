@@ -16,7 +16,7 @@ def repos(external = True, repo_mapping = {}):
         git_repository(
             name = "com_github_3rdparty_stout_atomic_backoff",
             remote = "https://github.com/3rdparty/stout-atomic-backoff",
-            commit = "7d30f13636a134df26e6339c09012084c0655280",
-            shallow_since = "1629611251 +0200",
+            commit = "b4d3d4d714f6c57fa0faedb0eff6ff32bb772fda",
+            shallow_since = "1629613266 +0200",
             repo_mapping = repo_mapping,
         )
