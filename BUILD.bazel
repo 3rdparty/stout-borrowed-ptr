@@ -2,9 +2,12 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
     name = "borrowed_ptr",
-    hdrs = ["stout/borrowed_ptr.h", "stout/borrowable.h"],
+    hdrs = [
+        "stout/borrowed_ptr.h",
+        "stout/borrowable.h"
+    ],
     deps = [
-        "@stout-stateful-tally//:stateful-tally",
+        "@com_github_3rdparty_stout_stateful_tally//:stateful-tally",
     ],
     visibility = ["//visibility:public"],
 )

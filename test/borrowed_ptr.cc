@@ -15,55 +15,54 @@ using std::thread;
 using std::unique_ptr;
 using std::vector;
 
-using stout::borrowable;
+using stout::Borrowable;
 using stout::borrowed_ptr;
 
 using testing::_;
 using testing::MockFunction;
 
 
-TEST(BorrowTest, Borrow)
-{
-  borrowable<string> s("hello world");
+TEST(BorrowTest, Borrow) {
+  Borrowable<string> s("hello world");
 
   MockFunction<void()> mock;
 
   EXPECT_CALL(mock, Call())
     .Times(1);
 
-  borrowed_ptr<string> borrowed = s.borrow();
+  borrowed_ptr<string> borrowed = s.Borrow();
 
-  s.watch(mock.AsStdFunction());
+  s.Watch(mock.AsStdFunction());
 }
 
 
 TEST(BorrowTest, ConstBorrow)
 {
-  borrowable<const string> s("hello world");
+  Borrowable<const string> s("hello world");
 
   MockFunction<void()> mock;
 
   EXPECT_CALL(mock, Call())
     .Times(1);
 
-  borrowed_ptr<const string> borrowed = s.borrow();
+  borrowed_ptr<const string> borrowed = s.Borrow();
 
-  s.watch(mock.AsStdFunction());
+  s.Watch(mock.AsStdFunction());
 }
 
 
 TEST(BorrowTest, Reborrow)
 {
-  borrowable<string> s("hello world");
+  Borrowable<string> s("hello world");
 
   MockFunction<void()> mock;
 
   EXPECT_CALL(mock, Call())
     .Times(1);
 
-  borrowed_ptr<string> borrowed = s.borrow();
+  borrowed_ptr<string> borrowed = s.Borrow();
 
-  s.watch(mock.AsStdFunction());
+  s.Watch(mock.AsStdFunction());
 
   borrowed_ptr<string> reborrow = borrowed.reborrow();
 
@@ -80,24 +79,24 @@ TEST(BorrowTest, Emplace)
     borrowed_ptr<int> i_;
   };
 
-  borrowable<int> i(42);
+  Borrowable<int> i(42);
 
   MockFunction<void()> mock;
 
   EXPECT_CALL(mock, Call())
     .Times(1);
 
-  vector<borrowable<S>> vector;
+  vector<Borrowable<S>> vector;
 
-  vector.emplace_back(i.borrow());
+  vector.emplace_back(i.Borrow());
 
-  i.watch(mock.AsStdFunction());
+  i.Watch(mock.AsStdFunction());
 }
 
 
 TEST(BorrowTest, MultipleBorrows)
 {
-  borrowable<string> s("hello world");
+  Borrowable<string> s("hello world");
 
   MockFunction<void()> mock;
 
@@ -106,12 +105,12 @@ TEST(BorrowTest, MultipleBorrows)
 
   vector<borrowed_ptr<string>> borrows;
 
-  borrows.push_back(s.borrow());
-  borrows.push_back(s.borrow());
-  borrows.push_back(s.borrow());
-  borrows.push_back(s.borrow());
+  borrows.push_back(s.Borrow());
+  borrows.push_back(s.Borrow());
+  borrows.push_back(s.Borrow());
+  borrows.push_back(s.Borrow());
 
-  s.watch(mock.AsStdFunction());
+  s.Watch(mock.AsStdFunction());
 
   vector<thread> threads;
 
@@ -139,7 +138,7 @@ TEST(BorrowTest, MultipleBorrows)
 
 TEST(BorrowTest, MultipleConstBorrows)
 {
-  borrowable<const string> s("hello world");
+  Borrowable<const string> s("hello world");
 
   MockFunction<void()> mock;
 
@@ -148,12 +147,12 @@ TEST(BorrowTest, MultipleConstBorrows)
 
   vector<borrowed_ptr<const string>> borrows;
 
-  borrows.push_back(s.borrow());
-  borrows.push_back(s.borrow());
-  borrows.push_back(s.borrow());
-  borrows.push_back(s.borrow());
+  borrows.push_back(s.Borrow());
+  borrows.push_back(s.Borrow());
+  borrows.push_back(s.Borrow());
+  borrows.push_back(s.Borrow());
 
-  s.watch(mock.AsStdFunction());
+  s.Watch(mock.AsStdFunction());
 
   vector<thread> threads;
 

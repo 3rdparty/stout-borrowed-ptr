@@ -5,6 +5,6 @@ cc_test(
     srcs = ["borrowed_ptr.cc"],
     deps = [
         "//:borrowed_ptr",
-        "@gtest//:gtest_main",
+        "@com_github_google_googletest//:gtest_main",
     ],
 )

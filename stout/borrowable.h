@@ -17,26 +17,26 @@ namespace stout {
 // destruct without any atomic backoff (because any workers/threads
 // will have relinquished).
 template <typename T>
-class borrowable
-{
-public:
+class Borrowable {
+ public:
   template <typename... Args>
-  borrowable(Args&&... args)
-    : t_(std::forward<Args>(args)...), tally_(State::Borrowing) {}
+  Borrowable(Args&&... args)
+    : t_(std::forward<Args>(args)...),
+      tally_(State::Borrowing) {}
 
-  borrowable(const borrowable& that)
-    : t_(that.t_), tally_(State::Borrowing) {}
+  Borrowable(const Borrowable& that)
+    : t_(that.t_),
+      tally_(State::Borrowing) {}
 
-  ~borrowable()
-  {
+  ~Borrowable() {
     auto state = State::Borrowing;
-    if (!tally_.update(state, State::Waiting)) {
+    if (!tally_.Update(state, State::Waiting)) {
       std::abort(); // Invalid state encountered.
     } else {
       // // NOTE: it's possible that we'll block forever if exceptions
       // // were thrown and destruction was not successful.
       // if (!std::uncaught_exceptions() > 0) {
-        tally_.wait([](auto /* state */, auto count) {
+        tally_.Wait([](auto /* state */, auto count) {
           return count == 0;
         });
       // }
@@ -44,9 +44,8 @@ public:
   }
 
   template <typename F>
-  bool watch(F&& f)
-  {
-    auto [state, count] = tally_.wait([](auto, auto) { return true; });
+  bool Watch(F&& f) {
+    auto [state, count] = tally_.Wait([](auto, auto) { return true; });
 
     do {
       if (state == State::Watching) {
@@ -58,27 +57,25 @@ public:
 
       assert(state == State::Borrowing);
 
-    } while (!tally_.update(state, count, State::Watching, count + 1));
+    } while (!tally_.Update(state, count, State::Watching, count + 1));
 
     watch_ = std::move(f);
 
-    relinquish();
+    Relinquish();
 
     return true;
   }
 
-  borrowed_ptr<T> borrow()
-  {
+  borrowed_ptr<T> Borrow() {
     auto state = State::Borrowing;
-    if (tally_.increment(state)) {
+    if (tally_.Increment(state)) {
       return borrowed_ptr<T>(this);
     } else {
       return borrowed_ptr<T>();
     }
   }
 
-  size_t borrows()
-  {
+  size_t borrows() {
     return tally_.count();
   }
 
@@ -88,13 +85,12 @@ public:
 
   T& operator*() { return t_; }
 
-private:
+ private:
   template <typename>
   friend class borrowed_ptr;
 
-  void relinquish()
-  {
-    auto [state, count] = tally_.decrement();
+  void Relinquish() {
+    auto [state, count] = tally_.Decrement();
 
     if (state == State::Watching && count == 0) {
       // Move out 'watch_' in case it gets reset either in the
@@ -103,7 +99,7 @@ private:
       auto f = std::move(watch_);
       watch_ = std::function<void()>();
 
-      tally_.update(state, State::Borrowing);
+      tally_.Update(state, State::Borrowing);
 
       // At this point a call to 'borrow()' may mean that there are
       // outstanding borrowed_ptr's when the watch callback gets
@@ -116,15 +112,14 @@ private:
     }
   }
 
-  borrowed_ptr<T> reborrow()
-  {
-    auto [state, count] = tally_.wait([](auto, auto) { return true; });
+  borrowed_ptr<T> Reborrow() {
+    auto [state, count] = tally_.Wait([](auto, auto) { return true; });
 
     assert(count > 0);
 
     do {
       assert(state != State::Waiting);
-    } while (!tally_.increment(state));
+    } while (!tally_.Increment(state));
 
     return borrowed_ptr<T>(this);
   }
@@ -141,10 +136,10 @@ private:
   // copyable). What would it mean to be able to borrow a pointer to
   // something that might move!? If an implemenetation ever replaces
   // 'stateful_tally' with something else care will need to be taken
-  // to ensure that 'borrowable' doesn't become moveable.
-  stateful_tally<State> tally_;
+  // to ensure that 'Borrowable' doesn't become moveable.
+  StatefulTally<State> tally_;
 
   std::function<void()> watch_;
 };
 
-} // namespace stout {
+} // namespace stout
