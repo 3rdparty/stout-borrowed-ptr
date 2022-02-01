@@ -1,11 +1,12 @@
+#include "stout/borrowed_ptr.h"
+
 #include <atomic>
 #include <string>
 #include <thread>
 #include <vector>
 
-#include "gtest/gtest.h"
 #include "gmock/gmock.h"
-
+#include "gtest/gtest.h"
 #include "stout/borrowable.h"
 
 using std::atomic;
@@ -21,29 +22,32 @@ using stout::borrowed_ptr;
 using testing::_;
 using testing::MockFunction;
 
-
 TEST(BorrowTest, Borrow) {
   Borrowable<string> s("hello world");
 
   MockFunction<void()> mock;
 
   EXPECT_CALL(mock, Call())
-    .Times(1);
+      .Times(1);
 
   borrowed_ptr<string> borrowed = s.Borrow();
+
+  // NOTE: after a move we only expect a single relinquish!
+  borrowed_ptr<string> moved = std::move(borrowed);
+
+  EXPECT_EQ("hello world", *moved);
 
   s.Watch(mock.AsStdFunction());
 }
 
 
-TEST(BorrowTest, ConstBorrow)
-{
+TEST(BorrowTest, ConstBorrow) {
   Borrowable<const string> s("hello world");
 
   MockFunction<void()> mock;
 
   EXPECT_CALL(mock, Call())
-    .Times(1);
+      .Times(1);
 
   borrowed_ptr<const string> borrowed = s.Borrow();
 
@@ -51,14 +55,13 @@ TEST(BorrowTest, ConstBorrow)
 }
 
 
-TEST(BorrowTest, Reborrow)
-{
+TEST(BorrowTest, Reborrow) {
   Borrowable<string> s("hello world");
 
   MockFunction<void()> mock;
 
   EXPECT_CALL(mock, Call())
-    .Times(1);
+      .Times(1);
 
   borrowed_ptr<string> borrowed = s.Borrow();
 
@@ -70,11 +73,13 @@ TEST(BorrowTest, Reborrow)
 }
 
 
-TEST(BorrowTest, Emplace)
-{
-  struct S
-  {
-    S(borrowed_ptr<int> i) : i_(std::move(i)) {}
+TEST(BorrowTest, Emplace) {
+  struct S {
+    S(borrowed_ptr<int> i)
+      : i_(std::move(i)) {}
+
+    S(const S& that)
+      : i_(that.i_.reborrow()) {}
 
     borrowed_ptr<int> i_;
   };
@@ -84,7 +89,7 @@ TEST(BorrowTest, Emplace)
   MockFunction<void()> mock;
 
   EXPECT_CALL(mock, Call())
-    .Times(1);
+      .Times(1);
 
   vector<Borrowable<S>> vector;
 
@@ -94,14 +99,13 @@ TEST(BorrowTest, Emplace)
 }
 
 
-TEST(BorrowTest, MultipleBorrows)
-{
+TEST(BorrowTest, MultipleBorrows) {
   Borrowable<string> s("hello world");
 
   MockFunction<void()> mock;
 
   EXPECT_CALL(mock, Call())
-    .Times(0);
+      .Times(0);
 
   vector<borrowed_ptr<string>> borrows;
 
@@ -126,7 +130,7 @@ TEST(BorrowTest, MultipleBorrows)
   }
 
   EXPECT_CALL(mock, Call())
-    .Times(1);
+      .Times(1);
 
   wait.store(false);
 
@@ -136,14 +140,13 @@ TEST(BorrowTest, MultipleBorrows)
 }
 
 
-TEST(BorrowTest, MultipleConstBorrows)
-{
+TEST(BorrowTest, MultipleConstBorrows) {
   Borrowable<const string> s("hello world");
 
   MockFunction<void()> mock;
 
   EXPECT_CALL(mock, Call())
-    .Times(0);
+      .Times(0);
 
   vector<borrowed_ptr<const string>> borrows;
 
@@ -168,11 +171,78 @@ TEST(BorrowTest, MultipleConstBorrows)
   }
 
   EXPECT_CALL(mock, Call())
-    .Times(1);
+      .Times(1);
 
   wait.store(false);
 
   for (auto&& thread : threads) {
     thread.join();
   }
+}
+
+
+TEST(BorrowTest, BorrowedPtrUpcast) {
+  struct Base {
+    int i = 42;
+  };
+
+  struct Derived : public Base {};
+
+  Borrowable<Derived> derived;
+
+  MockFunction<void()> mock;
+
+  EXPECT_CALL(mock, Call())
+      .Times(1);
+
+  borrowed_ptr<Base> base = derived.Borrow();
+
+  base->i++;
+
+  EXPECT_EQ(43, base->i);
+
+  derived.Watch(mock.AsStdFunction());
+}
+
+
+TEST(BorrowTest, BorrowedPtrConstUpcast) {
+  struct Base {
+    int i = 42;
+  };
+
+  struct Derived : public Base {};
+
+  Borrowable<Derived> derived;
+
+  MockFunction<void()> mock;
+
+  EXPECT_CALL(mock, Call())
+      .Times(1);
+
+  borrowed_ptr<const Base> base = derived.Borrow();
+
+  EXPECT_EQ(42, base->i);
+
+  derived.Watch(mock.AsStdFunction());
+}
+
+TEST(BorrowTest, ConstBorrowedPtrUpcast) {
+  struct Base {
+    int i = 42;
+  };
+
+  struct Derived : public Base {};
+
+  Borrowable<const Derived> derived;
+
+  MockFunction<void()> mock;
+
+  EXPECT_CALL(mock, Call())
+      .Times(1);
+
+  borrowed_ptr<const Base> base = derived.Borrow();
+
+  EXPECT_EQ(42, base->i);
+
+  derived.Watch(mock.AsStdFunction());
 }
