@@ -19,7 +19,7 @@ def repos(external = True, repo_mapping = {}):
         git_repository(
             name = "com_github_3rdparty_stout_borrowed_ptr",
             remote = "https://github.com/3rdparty/stout-borrowed-ptr",
-            commit = "1217f2fed7dc805555b0145fabf6c23b00813160",
-            shallow_since = "1629613454 +0200",
+            commit = "06df189b738e6eff2fe6c3b3c9fdba91dd5b1320",
+            shallow_since = "1643741204 -0800",
             repo_mapping = repo_mapping,
         )
