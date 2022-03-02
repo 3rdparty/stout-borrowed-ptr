@@ -31,7 +31,7 @@ class BorrowableBase {
  public:
   template <typename F>
   bool Watch(F&& f) {
-    auto [state, count] = tally_.Wait([](auto, auto) { return true; });
+    auto [state, count] = tally_.Wait([](auto, size_t) { return true; });
 
     do {
       if (state == State::Watching) {
@@ -85,13 +85,13 @@ class BorrowableBase {
 
   virtual ~BorrowableBase() {
     auto state = State::Borrowing;
-    if (!tally_.Update(state, State::Waiting)) {
+    if (!tally_.Update(state, State::Destructing)) {
       std::abort(); // Invalid state encountered.
     } else {
-      // // NOTE: it's possible that we'll block forever if exceptions
-      // // were thrown and destruction was not successful.
+      // NOTE: it's possible that we'll block forever if exceptions
+      // were thrown and destruction was not successful.
       // if (!std::uncaught_exceptions() > 0) {
-      tally_.Wait([](auto /* state */, auto count) {
+      tally_.Wait([](auto /* state */, size_t count) {
         return count == 0;
       });
       // }
@@ -101,7 +101,7 @@ class BorrowableBase {
   enum class State : uint8_t {
     Borrowing,
     Watching,
-    Waiting,
+    Destructing,
   };
 
   // NOTE: 'stateful_tally' ensures this is non-moveable (but still
@@ -119,12 +119,12 @@ class BorrowableBase {
   friend class borrowed_ptr;
 
   void Reborrow() {
-    auto [state, count] = tally_.Wait([](auto, auto) { return true; });
+    auto [state, count] = tally_.Wait([](auto, size_t) { return true; });
 
     assert(count > 0);
 
     do {
-      assert(state != State::Waiting);
+      assert(state != State::Destructing);
     } while (!tally_.Increment(state));
   }
 };
