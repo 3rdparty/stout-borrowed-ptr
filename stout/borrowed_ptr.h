@@ -17,6 +17,9 @@ class borrowed_ref;
 template <typename T>
 class borrowed_ptr;
 
+template <typename F>
+class borrowed_callable;
+
 ////////////////////////////////////////////////////////////////////////
 
 // NOTE: currently this implementation of Borrowable does an atomic
@@ -140,32 +143,6 @@ class TypeErasedBorrowable {
 template <typename T>
 class Borrowable : public TypeErasedBorrowable {
  public:
-  // Helper type that is callable and handles ensuring 'this' is
-  // borrowed until the callback is destructed.
-  template <typename F>
-  class Callable final {
-   public:
-    Callable(F f, borrowed_ptr<T> t)
-      : f_(std::move(f)),
-        t_(std::move(t)) {}
-
-    Callable(Callable&& that) = default;
-
-    template <typename... Args>
-    decltype(auto) operator()(Args&&... args) const& {
-      return f_(std::forward<Args>(args)...);
-    }
-
-    template <typename... Args>
-    decltype(auto) operator()(Args&&... args) && {
-      return std::move(f_)(std::forward<Args>(args)...);
-    }
-
-   private:
-    F f_;
-    borrowed_ptr<T> t_;
-  };
-
   template <
       typename... Args,
       std::enable_if_t<std::is_constructible_v<T, Args...>, int> = 0>
@@ -196,10 +173,10 @@ class Borrowable : public TypeErasedBorrowable {
   }
 
   template <typename F>
-  Callable<F> Borrow(F&& f) {
+  borrowed_callable<F> Borrow(F&& f) {
     auto state = State::Borrowing;
     if (tally_.Increment(state)) {
-      return Callable<F>(std::forward<F>(f), borrowed_ptr<T>(this, &t_));
+      return borrowed_callable<F>(std::forward<F>(f), this);
     } else {
       // Why are you borrowing when you shouldn't be?
       std::abort();
@@ -404,6 +381,52 @@ class borrowed_ptr final {
 
   TypeErasedBorrowable* borrowable_ = nullptr;
   T* t_ = nullptr;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+// Helper type that is callable and handles ensuring a 'borrowed_ptr'
+// is borrowed until the callable is destructed.
+template <typename F>
+class borrowed_callable final {
+ public:
+  borrowed_callable(F f, TypeErasedBorrowable* borrowable)
+    : f_(std::move(f)),
+      borrowable_(CHECK_NOTNULL(borrowable)) {}
+
+  borrowed_callable(const borrowed_callable& that)
+    : f_(that.f_),
+      borrowable_([&]() {
+        if (that.borrowable_ != nullptr) {
+          that.borrowable_->Reborrow();
+          return that.borrowable_;
+        }
+      }()) {}
+
+  borrowed_callable(borrowed_callable&& that)
+    : f_(std::move(that.f_)) {
+    std::swap(borrowable_, that.borrowable_);
+  }
+
+  ~borrowed_callable() {
+    if (borrowable_ != nullptr) {
+      borrowable_->Relinquish();
+    }
+  }
+
+  template <typename... Args>
+  decltype(auto) operator()(Args&&... args) const& {
+    return f_(std::forward<Args>(args)...);
+  }
+
+  template <typename... Args>
+  decltype(auto) operator()(Args&&... args) && {
+    return std::move(f_)(std::forward<Args>(args)...);
+  }
+
+ private:
+  F f_;
+  TypeErasedBorrowable* borrowable_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////
