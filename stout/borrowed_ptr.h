@@ -89,6 +89,18 @@ class TypeErasedBorrowable {
   TypeErasedBorrowable()
     : tally_(State::Borrowing) {}
 
+  TypeErasedBorrowable(const TypeErasedBorrowable& that)
+    : tally_(State::Borrowing) {}
+
+  TypeErasedBorrowable(TypeErasedBorrowable&& that)
+    : tally_(State::Borrowing) {
+    // We need to wait until all borrows have been relinquished so
+    // any memory associated with 'that' can be safely released.
+    that.tally_.Wait([](auto /* state */, size_t count) {
+      return count == 0;
+    });
+  }
+
   virtual ~TypeErasedBorrowable() {
     auto state = State::Borrowing;
     if (!tally_.Update(state, State::Destructing)) {
@@ -147,20 +159,16 @@ class Borrowable : public TypeErasedBorrowable {
       typename... Args,
       std::enable_if_t<std::is_constructible_v<T, Args...>, int> = 0>
   Borrowable(Args&&... args)
-    : t_(std::forward<Args>(args)...) {}
+    : TypeErasedBorrowable(),
+      t_(std::forward<Args>(args)...) {}
 
   Borrowable(const Borrowable& that)
-    : t_(that.t_) {}
+    : TypeErasedBorrowable(that),
+      t_(that.t_) {}
 
   Borrowable(Borrowable&& that)
-    : t_([&]() {
-        // We need to wait until all borrows have been relinquished so
-        // any memory associated with 'that' can be safely released.
-        that.tally_.Wait([](auto /* state */, size_t count) {
-          return count == 0;
-        });
-        return std::move(that.t_);
-      }()) {}
+    : TypeErasedBorrowable(std::move(that)),
+      t_(std::move(that.t_)) {}
 
   borrowed_ref<T> Borrow() {
     auto state = State::Borrowing;
@@ -209,6 +217,33 @@ class Borrowable : public TypeErasedBorrowable {
 
  private:
   T t_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+class enable_borrowable_from_this : public TypeErasedBorrowable {
+ public:
+  borrowed_ref<T> Borrow() {
+    auto state = State::Borrowing;
+    if (tally_.Increment(state)) {
+      return borrowed_ref<T>(*this, *dynamic_cast<T*>(this));
+    } else {
+      // Why are you borrowing when you shouldn't be?
+      std::abort();
+    }
+  }
+
+  template <typename F>
+  borrowed_callable<F> Borrow(F&& f) {
+    auto state = State::Borrowing;
+    if (tally_.Increment(state)) {
+      return borrowed_callable<F>(std::forward<F>(f), this);
+    } else {
+      // Why are you borrowing when you shouldn't be?
+      std::abort();
+    }
+  }
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -282,6 +317,9 @@ class borrowed_ref final {
 
   template <typename>
   friend class Borrowable;
+
+  template <typename>
+  friend class enable_borrowable_from_this;
 
   borrowed_ref(TypeErasedBorrowable& borrowable, T& t)
     : borrowable_(borrowable), t_(t) {}
