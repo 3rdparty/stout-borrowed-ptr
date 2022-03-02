@@ -18,6 +18,7 @@ using std::vector;
 
 using stout::Borrowable;
 using stout::borrowed_ptr;
+using stout::enable_borrowable_from_this;
 
 using testing::_;
 using testing::MockFunction;
@@ -300,4 +301,65 @@ TEST(BorrowTest, Callable) {
   }
 
   EXPECT_EQ(s.borrows(), 0);
+}
+
+
+TEST(BorrowTest, EnableBorrowableFromThis) {
+  class Foo : public enable_borrowable_from_this<Foo> {
+  public:
+    Foo(int i) : i(i) {}
+    int i = 0;
+  };
+
+  Foo foo(42);
+
+  EXPECT_EQ(foo.borrows(), 0);
+
+  borrowed_ptr<Foo> borrowed = foo.Borrow();
+
+  EXPECT_EQ(foo.borrows(), 1);
+
+  EXPECT_EQ(borrowed->i, 42);
+}
+
+
+TEST(BorrowTest, EnableBorrowableFromThisMove) {
+  class Foo : public enable_borrowable_from_this<Foo> {
+  public:
+    Foo(int i) : i(i) {}
+    int i = 0;
+  };
+
+  Foo foo(42);
+
+  Foo moved = std::move(foo);
+
+  EXPECT_EQ(moved.borrows(), 0);
+
+  borrowed_ptr<Foo> borrowed = moved.Borrow();
+
+  EXPECT_EQ(moved.borrows(), 1);
+
+  EXPECT_EQ(borrowed->i, 42);
+}
+
+
+TEST(BorrowTest, EnableBorrowableFromThisCopy) {
+  class Foo : public enable_borrowable_from_this<Foo> {
+  public:
+    Foo(int i) : i(i) {}
+    int i = 0;
+  };
+
+  Foo foo(42);
+
+  Foo copy = foo;
+
+  EXPECT_EQ(copy.borrows(), 0);
+
+  borrowed_ptr<Foo> borrowed = copy.Borrow();
+
+  EXPECT_EQ(copy.borrows(), 1);
+
+  EXPECT_EQ(borrowed->i, 42);
 }
