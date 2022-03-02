@@ -134,12 +134,24 @@ class BorrowableBase {
 template <typename T>
 class Borrowable : public BorrowableBase {
  public:
-  template <typename... Args>
+  template <
+   typename... Args,
+   std::enable_if_t<std::is_constructible_v<T, Args...>, int> = 0>
   Borrowable(Args&&... args)
     : t_(std::forward<Args>(args)...) {}
 
   Borrowable(const Borrowable& that)
     : t_(that.t_) {}
+
+  Borrowable(Borrowable&& that)
+    : t_([&]() {
+        // We need to wait until all borrows have been relinquished so
+        // any memory associated with 'that' can be safely released.
+        that.tally_.Wait([](auto /* state */, size_t count) {
+          return count == 0;
+        });
+        return std::move(that.t_);
+      }()) {}
 
   borrowed_ptr<T> Borrow() {
     auto state = State::Borrowing;

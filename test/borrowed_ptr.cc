@@ -246,3 +246,35 @@ TEST(BorrowTest, ConstBorrowedPtrUpcast) {
 
   derived.Watch(mock.AsStdFunction());
 }
+
+TEST(BorrowTest, MoveBorrowable) {
+  Borrowable<string> s("hello world");
+
+  borrowed_ptr<string> borrowed = s.Borrow();
+
+  atomic<bool> moving(false);
+
+  auto t = thread([&]() {
+    moving.store(true);
+    Borrowable<string> moved = std::move(s);
+    moving.store(false);
+  });
+
+  while (!moving.load()) {}
+
+  EXPECT_EQ("hello world", *s);
+
+  borrowed_ptr<string> reborrowed = borrowed.reborrow();
+
+  borrowed.relinquish();
+
+  EXPECT_TRUE(moving.load());
+
+  reborrowed.relinquish();
+
+  t.join();
+
+  EXPECT_FALSE(moving.load());
+
+  EXPECT_EQ("", *s);
+}
