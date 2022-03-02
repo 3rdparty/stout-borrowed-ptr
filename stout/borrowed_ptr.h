@@ -27,7 +27,7 @@ class borrowed_ptr;
 // to be notified when the work is complete and then Borrowable should
 // destruct without any atomic backoff (because any workers/threads
 // will have relinquished).
-class BorrowableBase {
+class TypeErasedBorrowable {
  public:
   template <typename F>
   bool Watch(F&& f) {
@@ -80,10 +80,10 @@ class BorrowableBase {
   }
 
  protected:
-  BorrowableBase()
+  TypeErasedBorrowable()
     : tally_(State::Borrowing) {}
 
-  virtual ~BorrowableBase() {
+  virtual ~TypeErasedBorrowable() {
     auto state = State::Borrowing;
     if (!tally_.Update(state, State::Destructing)) {
       std::abort(); // Invalid state encountered.
@@ -132,11 +132,11 @@ class BorrowableBase {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-class Borrowable : public BorrowableBase {
+class Borrowable : public TypeErasedBorrowable {
  public:
   template <
-   typename... Args,
-   std::enable_if_t<std::is_constructible_v<T, Args...>, int> = 0>
+      typename... Args,
+      std::enable_if_t<std::is_constructible_v<T, Args...>, int> = 0>
   Borrowable(Args&&... args)
     : t_(std::forward<Args>(args)...) {}
 
@@ -193,7 +193,7 @@ class Borrowable : public BorrowableBase {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-class borrowed_ptr {
+class borrowed_ptr final {
  public:
   borrowed_ptr() {}
 
@@ -206,7 +206,7 @@ class borrowed_ptr {
     relinquish();
   }
 
-  operator bool() const {
+  explicit operator bool() const {
     return borrowable_ != nullptr;
   }
 
@@ -245,12 +245,7 @@ class borrowed_ptr {
   }
 
   T* get() const {
-    if (borrowable_ != nullptr) {
-      assert(t_ != nullptr);
-      return t_;
-    } else {
-      return nullptr;
-    }
+    return t_;
   }
 
   T* operator->() const {
@@ -277,11 +272,11 @@ class borrowed_ptr {
   template <typename>
   friend class Borrowable;
 
-  borrowed_ptr(BorrowableBase* borrowable, T* t)
+  borrowed_ptr(TypeErasedBorrowable* borrowable, T* t)
     : borrowable_(borrowable),
       t_(t) {}
 
-  BorrowableBase* borrowable_ = nullptr;
+  TypeErasedBorrowable* borrowable_ = nullptr;
   T* t_ = nullptr;
 };
 
