@@ -10,7 +10,10 @@ namespace stout {
 
 ////////////////////////////////////////////////////////////////////////
 
-// Forward dependency.
+// Forward dependencies.
+template <typename T>
+class borrowed_ref;
+
 template <typename T>
 class borrowed_ptr;
 
@@ -69,11 +72,11 @@ class TypeErasedBorrowable {
       tally_.Update(state, State::Borrowing);
 
       // At this point a call to 'borrow()' may mean that there are
-      // outstanding borrowed_ptr's when the watch callback gets
+      // outstanding 'borrowed_ref/ptr' when the watch callback gets
       // invoked and thus it's up to the users of this abstraction to
       // avoid making calls to 'borrow()' until after the watch
       // callback gets invoked if they want to guarantee that there
-      // are no outstanding borrowed_ptr's.
+      // are no outstanding 'borrowed_ref/ptr'.
 
       f();
     }
@@ -114,7 +117,10 @@ class TypeErasedBorrowable {
   std::function<void()> watch_;
 
  private:
-  // Only 'borrowed_ptr' can reborrow!
+  // Only 'borrowed_ref/ptr' can reborrow!
+  template <typename>
+  friend class borrowed_ref;
+
   template <typename>
   friend class borrowed_ptr;
 
@@ -179,12 +185,13 @@ class Borrowable : public TypeErasedBorrowable {
         return std::move(that.t_);
       }()) {}
 
-  borrowed_ptr<T> Borrow() {
+  borrowed_ref<T> Borrow() {
     auto state = State::Borrowing;
     if (tally_.Increment(state)) {
-      return borrowed_ptr<T>(this, &t_);
+      return borrowed_ref<T>(*this, t_);
     } else {
-      return borrowed_ptr<T>();
+      // Why are you borrowing when you shouldn't be?
+      std::abort();
     }
   }
 
@@ -194,8 +201,7 @@ class Borrowable : public TypeErasedBorrowable {
     if (tally_.Increment(state)) {
       return Callable<F>(std::forward<F>(f), borrowed_ptr<T>(this, &t_));
     } else {
-      // TODO(benh): make semantics here consistent with 'Borrow()',
-      // likely this means we should always abort (or throw an exception).
+      // Why are you borrowing when you shouldn't be?
       std::abort();
     }
   }
@@ -226,6 +232,85 @@ class Borrowable : public TypeErasedBorrowable {
 
  private:
   T t_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+class borrowed_ref final {
+ public:
+  borrowed_ref(const borrowed_ref& that)
+    : borrowable_([&]() {
+        that.borrowable_.Reborrow();
+        return that.borrowable_;
+      }()) {}
+
+  ~borrowed_ref() {
+    borrowable_.Relinquish();
+  }
+
+  template <
+      typename U,
+      std::enable_if_t<
+          std::conjunction_v<
+              std::negation<std::is_pointer<U>>,
+              std::negation<std::is_reference<U>>,
+              std::is_convertible<T*, U*>>,
+          int> = 0>
+  operator borrowed_ref<U>() const {
+    borrowable_.Reborrow();
+    return borrowed_ref<U>(borrowable_, t_);
+  }
+
+  template <
+      typename U,
+      std::enable_if_t<
+          std::conjunction_v<
+              std::negation<std::is_pointer<U>>,
+              std::negation<std::is_reference<U>>,
+              std::is_convertible<T*, U*>>,
+          int> = 0>
+  operator borrowed_ptr<U>() const {
+    borrowable_.Reborrow();
+    return borrowed_ptr<U>(&borrowable_, &t_);
+  }
+
+  borrowed_ref reborrow() const {
+    borrowable_.Reborrow();
+    return borrowed_ref<T>(borrowable_, t_);
+  }
+
+  T* get() const {
+    return &t_;
+  }
+
+  T* operator->() const {
+    return &t_;
+  }
+
+  T& operator*() const {
+    return t_;
+  }
+
+  // TODO(benh): operator[]
+
+  template <typename H>
+  friend H AbslHashValue(H h, const borrowed_ref& that) {
+    return H::combine(std::move(h), &that.t_);
+  }
+
+ private:
+  template <typename>
+  friend class borrowed_ref;
+
+  template <typename>
+  friend class Borrowable;
+
+  borrowed_ref(TypeErasedBorrowable& borrowable, T& t)
+    : borrowable_(borrowable), t_(t) {}
+
+  TypeErasedBorrowable& borrowable_;
+  T& t_;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -306,6 +391,9 @@ class borrowed_ptr final {
  private:
   template <typename>
   friend class borrowed_ptr;
+
+  template <typename>
+  friend class borrowed_ref;
 
   template <typename>
   friend class Borrowable;
