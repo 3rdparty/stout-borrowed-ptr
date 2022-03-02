@@ -134,6 +134,32 @@ class TypeErasedBorrowable {
 template <typename T>
 class Borrowable : public TypeErasedBorrowable {
  public:
+  // Helper type that is callable and handles ensuring 'this' is
+  // borrowed until the callback is destructed.
+  template <typename F>
+  class Callable final {
+   public:
+    Callable(F f, borrowed_ptr<T> t)
+      : f_(std::move(f)),
+        t_(std::move(t)) {}
+
+    Callable(Callable&& that) = default;
+
+    template <typename... Args>
+    decltype(auto) operator()(Args&&... args) const& {
+      return f_(std::forward<Args>(args)...);
+    }
+
+    template <typename... Args>
+    decltype(auto) operator()(Args&&... args) && {
+      return std::move(f_)(std::forward<Args>(args)...);
+    }
+
+   private:
+    F f_;
+    borrowed_ptr<T> t_;
+  };
+
   template <
       typename... Args,
       std::enable_if_t<std::is_constructible_v<T, Args...>, int> = 0>
@@ -159,6 +185,18 @@ class Borrowable : public TypeErasedBorrowable {
       return borrowed_ptr<T>(this, &t_);
     } else {
       return borrowed_ptr<T>();
+    }
+  }
+
+  template <typename F>
+  Callable<F> Borrow(F&& f) {
+    auto state = State::Borrowing;
+    if (tally_.Increment(state)) {
+      return Callable<F>(std::forward<F>(f), borrowed_ptr<T>(this, &t_));
+    } else {
+      // TODO(benh): make semantics here consistent with 'Borrow()',
+      // likely this means we should always abort (or throw an exception).
+      std::abort();
     }
   }
 

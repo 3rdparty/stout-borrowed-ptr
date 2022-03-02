@@ -226,6 +226,7 @@ TEST(BorrowTest, BorrowedPtrConstUpcast) {
   derived.Watch(mock.AsStdFunction());
 }
 
+
 TEST(BorrowTest, ConstBorrowedPtrUpcast) {
   struct Base {
     int i = 42;
@@ -246,6 +247,7 @@ TEST(BorrowTest, ConstBorrowedPtrUpcast) {
 
   derived.Watch(mock.AsStdFunction());
 }
+
 
 TEST(BorrowTest, MoveBorrowable) {
   Borrowable<string> s("hello world");
@@ -277,4 +279,25 @@ TEST(BorrowTest, MoveBorrowable) {
   EXPECT_FALSE(moving.load());
 
   EXPECT_EQ("", *s);
+}
+
+
+TEST(BorrowTest, Callable) {
+  Borrowable<std::string> s("hello world");
+
+  auto callable = s.Borrow([&]() {
+    EXPECT_EQ(s.borrows(), 1);
+  });
+
+  EXPECT_EQ(s.borrows(), 1);
+
+  {
+    auto moved = std::move(callable);
+
+    EXPECT_EQ(s.borrows(), 1);
+
+    moved();
+  }
+
+  EXPECT_EQ(s.borrows(), 0);
 }
