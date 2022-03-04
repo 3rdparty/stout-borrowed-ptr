@@ -248,17 +248,35 @@ class enable_borrowable_from_this : public TypeErasedBorrowable {
 
 ////////////////////////////////////////////////////////////////////////
 
+// Represents a borrowed reference to some borrowable of type
+// 'T'. Unlike 'borrowed_ptr' a 'borrowed_ref' acts like a raw
+// reference which is always non-null. Of course, if you move a
+// 'borrowed_ref' then you'll get a runtime error if you attempt to
+// "use after move" which is strictly safer than if you only used raw
+// references, however, it also means that there is a set of possible
+// patterns that are not expressible, in particular, you might be able
+// to move a raw reference and still use that reference to point to
+// allocated memory, but your mileage may vary depending on whether or
+// not that is safe, and hence most of the time you always want to
+// treat "use after move" as an error (which is what the clang-tidy
+// check does as well).
 template <typename T>
 class borrowed_ref final {
  public:
-  borrowed_ref(const borrowed_ref& that)
-    : borrowable_([&]() {
-        that.borrowable_.Reborrow();
-        return that.borrowable_;
-      }()) {}
+  // Deleted copy constructor to force use of 'reborrow()' which makes
+  // the copying more explicit!
+  borrowed_ref(const borrowed_ref& that) = delete;
+
+  borrowed_ref(borrowed_ref&& that) {
+    std::swap(borrowable_, CHECK_NOTNULL(that.borrowable_));
+    std::swap(t_, CHECK_NOTNULL(that.t_));
+  }
 
   ~borrowed_ref() {
-    borrowable_.Relinquish();
+    // May have been moved!
+    if (borrowable_ != nullptr) {
+      borrowable_->Relinquish();
+    }
   }
 
   template <
@@ -270,8 +288,8 @@ class borrowed_ref final {
               std::is_convertible<T*, U*>>,
           int> = 0>
   operator borrowed_ref<U>() const {
-    borrowable_.Reborrow();
-    return borrowed_ref<U>(borrowable_, t_);
+    CHECK_NOTNULL(borrowable_)->Reborrow();
+    return borrowed_ref<U>(*CHECK_NOTNULL(borrowable_), *CHECK_NOTNULL(t_));
   }
 
   template <
@@ -283,25 +301,25 @@ class borrowed_ref final {
               std::is_convertible<T*, U*>>,
           int> = 0>
   operator borrowed_ptr<U>() const {
-    borrowable_.Reborrow();
-    return borrowed_ptr<U>(&borrowable_, &t_);
+    CHECK_NOTNULL(borrowable_)->Reborrow();
+    return borrowed_ptr<U>(CHECK_NOTNULL(borrowable_), CHECK_NOTNULL(t_));
   }
 
   borrowed_ref reborrow() const {
-    borrowable_.Reborrow();
-    return borrowed_ref<T>(borrowable_, t_);
+    CHECK_NOTNULL(borrowable_)->Reborrow();
+    return borrowed_ref<T>(*CHECK_NOTNULL(borrowable_), *CHECK_NOTNULL(t_));
   }
 
   T* get() const {
-    return &t_;
+    return CHECK_NOTNULL(t_);
   }
 
   T* operator->() const {
-    return &t_;
+    return get();
   }
 
   T& operator*() const {
-    return t_;
+    return *get();
   }
 
   // TODO(benh): operator[]
@@ -322,18 +340,26 @@ class borrowed_ref final {
   friend class enable_borrowable_from_this;
 
   borrowed_ref(TypeErasedBorrowable& borrowable, T& t)
-    : borrowable_(borrowable), t_(t) {}
+    : borrowable_(&borrowable), t_(&t) {}
 
-  TypeErasedBorrowable& borrowable_;
-  T& t_;
+  TypeErasedBorrowable* borrowable_ = nullptr;
+  T* t_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////
 
+// Like 'borrowed_ref' except similar to a raw pointer (and
+// 'std::unique_ptr') it can be a 'nullptr', for example, by
+// constructing a 'borrowed_ptr' with the default constructor or after
+// calling 'relinquish()'.
 template <typename T>
 class borrowed_ptr final {
  public:
   borrowed_ptr() {}
+
+  // Deleted copy constructor to force use of 'reborrow()' which makes
+  // the copying more explicit!
+  borrowed_ptr(const borrowed_ptr& that) = delete;
 
   borrowed_ptr(borrowed_ptr&& that) {
     std::swap(borrowable_, that.borrowable_);
