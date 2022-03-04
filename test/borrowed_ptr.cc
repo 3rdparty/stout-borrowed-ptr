@@ -18,12 +18,36 @@ using std::vector;
 
 using stout::Borrowable;
 using stout::borrowed_ptr;
+using stout::borrowed_ref;
 using stout::enable_borrowable_from_this;
 
 using testing::_;
 using testing::MockFunction;
 
-TEST(BorrowTest, Borrow) {
+TEST(BorrowTest, BorrowRef) {
+  Borrowable<string> s("hello world");
+
+  MockFunction<void()> mock;
+
+  EXPECT_CALL(mock, Call())
+      .Times(1);
+
+  borrowed_ref<string> borrowed = s.Borrow();
+
+  EXPECT_EQ(s.borrows(), 1);
+
+  // NOTE: after a move we only expect a single borrow!
+  borrowed_ref<string> moved = std::move(borrowed);
+
+  EXPECT_EQ(s.borrows(), 1);
+
+  EXPECT_EQ("hello world", *moved);
+
+  s.Watch(mock.AsStdFunction());
+}
+
+
+TEST(BorrowTest, BorrowPtr) {
   Borrowable<string> s("hello world");
 
   MockFunction<void()> mock;
@@ -33,7 +57,7 @@ TEST(BorrowTest, Borrow) {
 
   borrowed_ptr<string> borrowed = s.Borrow();
 
-  // NOTE: after a move we only expect a single relinquish!
+  // NOTE: after a move we only expect a single borrow!
   borrowed_ptr<string> moved = std::move(borrowed);
 
   EXPECT_EQ("hello world", *moved);
@@ -42,7 +66,7 @@ TEST(BorrowTest, Borrow) {
 }
 
 
-TEST(BorrowTest, ConstBorrow) {
+TEST(BorrowTest, ConstBorrowPtr) {
   Borrowable<const string> s("hello world");
 
   MockFunction<void()> mock;
