@@ -482,6 +482,11 @@ class borrowed_callable final {
   decltype(auto) operator()(Args&&... args) const& {
     return f_(std::forward<Args>(args)...);
   }
+ 
+  template <typename... Args>
+  decltype(auto) operator()(Args&&... args) & {
+    return f_(std::forward<Args>(args)...);
+  }
 
   template <typename... Args>
   decltype(auto) operator()(Args&&... args) && {
