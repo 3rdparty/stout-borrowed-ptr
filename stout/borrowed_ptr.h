@@ -340,7 +340,8 @@ class borrowed_ref final {
   friend class enable_borrowable_from_this;
 
   borrowed_ref(TypeErasedBorrowable& borrowable, T& t)
-    : borrowable_(&borrowable), t_(&t) {}
+    : borrowable_(&borrowable),
+      t_(&t) {}
 
   TypeErasedBorrowable* borrowable_ = nullptr;
   T* t_ = nullptr;
@@ -482,7 +483,7 @@ class borrowed_callable final {
   decltype(auto) operator()(Args&&... args) const& {
     return f_(std::forward<Args>(args)...);
   }
- 
+
   template <typename... Args>
   decltype(auto) operator()(Args&&... args) & {
     return f_(std::forward<Args>(args)...);

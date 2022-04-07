@@ -1,12 +1,17 @@
 """Dependency specific initialization."""
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-
-load("@com_github_3rdparty_stout_stateful_tally//bazel:deps.bzl", stout_stateful_tally_deps="deps")
+load("@com_github_3rdparty_stout_stateful_tally//bazel:deps.bzl", stout_stateful_tally_deps = "deps")
 
 def deps(repo_mapping = {}):
+    """Propagate all dependencies.
+
+    Args:
+        repo_mapping (str): {}.
+    """
+
     stout_stateful_tally_deps(
-        repo_mapping = repo_mapping
+        repo_mapping = repo_mapping,
     )
 
     if "com_github_gflags_gflags" not in native.existing_rules():
