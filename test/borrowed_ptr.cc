@@ -330,8 +330,9 @@ TEST(BorrowTest, Callable) {
 
 TEST(BorrowTest, EnableBorrowableFromThis) {
   class Foo : public enable_borrowable_from_this<Foo> {
-  public:
-    Foo(int i) : i(i) {}
+   public:
+    Foo(int i)
+      : i(i) {}
     int i = 0;
   };
 
@@ -349,8 +350,9 @@ TEST(BorrowTest, EnableBorrowableFromThis) {
 
 TEST(BorrowTest, EnableBorrowableFromThisMove) {
   class Foo : public enable_borrowable_from_this<Foo> {
-  public:
-    Foo(int i) : i(i) {}
+   public:
+    Foo(int i)
+      : i(i) {}
     int i = 0;
   };
 
@@ -370,8 +372,9 @@ TEST(BorrowTest, EnableBorrowableFromThisMove) {
 
 TEST(BorrowTest, EnableBorrowableFromThisCopy) {
   class Foo : public enable_borrowable_from_this<Foo> {
-  public:
-    Foo(int i) : i(i) {}
+   public:
+    Foo(int i)
+      : i(i) {}
     int i = 0;
   };
 
