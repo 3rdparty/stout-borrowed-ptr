@@ -47,7 +47,7 @@ class TypeErasedBorrowable {
         return true;
       }
 
-      assert(state == State::Borrowing);
+      CHECK_EQ(state, State::Borrowing);
 
     } while (!tally_.Update(state, count, State::Watching, count + 1));
 
@@ -122,6 +122,23 @@ class TypeErasedBorrowable {
     Destructing,
   };
 
+  // We need to overload '<<' operator for 'State' enum class in
+  // order to use 'CHECK_*' family macros.
+  friend std::ostream& operator<<(
+      std::ostream& os,
+      const TypeErasedBorrowable::State& state) {
+    switch (state) {
+      case TypeErasedBorrowable::State::Borrowing:
+        return os << "Borrowing";
+      case TypeErasedBorrowable::State::Watching:
+        return os << "Watching";
+      case TypeErasedBorrowable::State::Destructing:
+        return os << "Destructing";
+      default:
+        LOG(FATAL) << "Unreachable";
+    }
+  };
+
   // NOTE: 'stateful_tally' ensures this is non-moveable (but still
   // copyable). What would it mean to be able to borrow a pointer to
   // something that might move!? If an implemenetation ever replaces
@@ -145,10 +162,10 @@ class TypeErasedBorrowable {
   void Reborrow() {
     auto [state, count] = tally_.Wait([](auto, size_t) { return true; });
 
-    assert(count > 0);
+    CHECK_GT(count, 0u);
 
     do {
-      assert(state != State::Destructing);
+      CHECK_NE(state, State::Destructing);
     } while (!tally_.Increment(state));
   }
 };
