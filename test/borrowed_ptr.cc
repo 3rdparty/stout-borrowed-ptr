@@ -332,7 +332,7 @@ TEST(BorrowTest, CallableCopy) {
   Borrowable<std::string> s("hello world");
 
   auto callable = s.Borrow([&]() {
-    EXPECT_EQ(s.borrows(), 1);
+    EXPECT_EQ(s.borrows(), 2);
   });
 
   EXPECT_EQ(s.borrows(), 1);
