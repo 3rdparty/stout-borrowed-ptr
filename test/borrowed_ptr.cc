@@ -307,7 +307,7 @@ TEST(BorrowTest, MoveBorrowable) {
 }
 
 
-TEST(BorrowTest, Callable) {
+TEST(BorrowTest, CallableMove) {
   Borrowable<std::string> s("hello world");
 
   auto callable = s.Borrow([&]() {
@@ -325,6 +325,27 @@ TEST(BorrowTest, Callable) {
   }
 
   EXPECT_EQ(s.borrows(), 0);
+}
+
+
+TEST(BorrowTest, CallableCopy) {
+  Borrowable<std::string> s("hello world");
+
+  auto callable = s.Borrow([&]() {
+    EXPECT_EQ(s.borrows(), 1);
+  });
+
+  EXPECT_EQ(s.borrows(), 1);
+
+  {
+    auto copy = callable;
+
+    EXPECT_EQ(s.borrows(), 2);
+
+    copy();
+  }
+
+  EXPECT_EQ(s.borrows(), 1);
 }
 
 

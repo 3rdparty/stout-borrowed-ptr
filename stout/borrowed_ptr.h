@@ -139,6 +139,9 @@ class TypeErasedBorrowable {
   template <typename>
   friend class borrowed_ptr;
 
+  template <typename>
+  friend class borrowed_callable;
+
   void Reborrow() {
     auto [state, count] = tally_.Wait([](auto, size_t) { return true; });
 
@@ -461,10 +464,12 @@ class borrowed_callable final {
 
   borrowed_callable(const borrowed_callable& that)
     : f_(that.f_),
-      borrowable_([&]() {
+      borrowable_([&]() -> TypeErasedBorrowable* {
         if (that.borrowable_ != nullptr) {
           that.borrowable_->Reborrow();
           return that.borrowable_;
+        } else {
+          return nullptr;
         }
       }()) {}
 
