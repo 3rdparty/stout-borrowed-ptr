@@ -299,6 +299,12 @@ class borrowed_ref final {
     }
   }
 
+  borrowed_ref& operator=(borrowed_ref&& that) {
+    std::swap(borrowable_, CHECK_NOTNULL(that.borrowable_));
+    std::swap(t_, CHECK_NOTNULL(that.t_));
+    return *this;
+  }
+
   template <
       typename U,
       std::enable_if_t<
@@ -389,6 +395,12 @@ class borrowed_ptr final {
 
   ~borrowed_ptr() {
     relinquish();
+  }
+
+  borrowed_ptr& operator=(borrowed_ptr&& that) {
+    std::swap(borrowable_, that.borrowable_);
+    std::swap(t_, that.t_);
+    return *this;
   }
 
   explicit operator bool() const {
