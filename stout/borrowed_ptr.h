@@ -2,6 +2,7 @@
 
 #include <functional>
 
+#include "glog/logging.h"
 #include "stout/stateful-tally.h"
 
 ////////////////////////////////////////////////////////////////////////
@@ -104,7 +105,7 @@ class TypeErasedBorrowable {
   virtual ~TypeErasedBorrowable() {
     auto state = State::Borrowing;
     if (!tally_.Update(state, State::Destructing)) {
-      std::abort(); // Invalid state encountered.
+      LOG(FATAL) << "Unable to transition to Destructing from state " << state;
     } else {
       // NOTE: it's possible that we'll block forever if exceptions
       // were thrown and destruction was not successful.
@@ -196,7 +197,7 @@ class Borrowable : public TypeErasedBorrowable {
       return borrowed_ref<T>(*this, t_);
     } else {
       // Why are you borrowing when you shouldn't be?
-      std::abort();
+      LOG(FATAL) << "Attempting to borrow in state " << state;
     }
   }
 
@@ -207,7 +208,7 @@ class Borrowable : public TypeErasedBorrowable {
       return borrowed_callable<F>(std::forward<F>(f), this);
     } else {
       // Why are you borrowing when you shouldn't be?
-      std::abort();
+      LOG(FATAL) << "Attempting to borrow in state " << state;
     }
   }
 
@@ -245,23 +246,31 @@ template <typename T>
 class enable_borrowable_from_this : public TypeErasedBorrowable {
  public:
   borrowed_ref<T> Borrow() {
+    static_assert(
+        std::is_base_of_v<enable_borrowable_from_this<T>, T>,
+        "Type 'T' must derive from 'stout::enable_borrowable_from_this<T>'");
+
     auto state = State::Borrowing;
     if (tally_.Increment(state)) {
-      return borrowed_ref<T>(*this, *dynamic_cast<T*>(this));
+      return borrowed_ref<T>(*this, *static_cast<T*>(this));
     } else {
       // Why are you borrowing when you shouldn't be?
-      std::abort();
+      LOG(FATAL) << "Attempting to borrow in state " << state;
     }
   }
 
   template <typename F>
   borrowed_callable<F> Borrow(F&& f) {
+    static_assert(
+        std::is_base_of_v<enable_borrowable_from_this<T>, T>,
+        "Type 'T' must derive from 'stout::enable_borrowable_from_this<T>'");
+
     auto state = State::Borrowing;
     if (tally_.Increment(state)) {
       return borrowed_callable<F>(std::forward<F>(f), this);
     } else {
       // Why are you borrowing when you shouldn't be?
-      std::abort();
+      LOG(FATAL) << "Attempting to borrow in state " << state;
     }
   }
 };
