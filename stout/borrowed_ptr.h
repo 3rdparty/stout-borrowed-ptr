@@ -59,6 +59,12 @@ class TypeErasedBorrowable {
     return true;
   }
 
+  void WaitUntilBorrowsEquals(size_t borrows) {
+    tally_.Wait([&](auto /* state */, size_t count) {
+      return count == borrows;
+    });
+  }
+
   size_t borrows() {
     return tally_.count();
   }
@@ -97,9 +103,7 @@ class TypeErasedBorrowable {
     : tally_(State::Borrowing) {
     // We need to wait until all borrows have been relinquished so
     // any memory associated with 'that' can be safely released.
-    that.tally_.Wait([](auto /* state */, size_t count) {
-      return count == 0;
-    });
+    that.WaitUntilBorrowsEquals(0);
   }
 
   virtual ~TypeErasedBorrowable() {
@@ -110,9 +114,7 @@ class TypeErasedBorrowable {
       // NOTE: it's possible that we'll block forever if exceptions
       // were thrown and destruction was not successful.
       // if (!std::uncaught_exceptions() > 0) {
-      tally_.Wait([](auto /* state */, size_t count) {
-        return count == 0;
-      });
+      WaitUntilBorrowsEquals(0);
       // }
     }
   }
@@ -322,7 +324,7 @@ class borrowed_ref final {
               std::negation<std::is_reference<U>>,
               std::is_convertible<T*, U*>>,
           int> = 0>
-  operator borrowed_ref<U>() const {
+  operator borrowed_ref<U>() const& {
     CHECK_NOTNULL(borrowable_)->Reborrow();
     return borrowed_ref<U>(*CHECK_NOTNULL(borrowable_), *CHECK_NOTNULL(t_));
   }
@@ -335,9 +337,69 @@ class borrowed_ref final {
               std::negation<std::is_reference<U>>,
               std::is_convertible<T*, U*>>,
           int> = 0>
-  operator borrowed_ptr<U>() const {
+  operator borrowed_ref<U>() & {
+    CHECK_NOTNULL(borrowable_)->Reborrow();
+    return borrowed_ref<U>(*CHECK_NOTNULL(borrowable_), *CHECK_NOTNULL(t_));
+  }
+
+  template <
+      typename U,
+      std::enable_if_t<
+          std::conjunction_v<
+              std::negation<std::is_pointer<U>>,
+              std::negation<std::is_reference<U>>,
+              std::is_convertible<T*, U*>>,
+          int> = 0>
+  operator borrowed_ref<U>() && {
+    // Don't reborrow since we're being moved!
+    TypeErasedBorrowable* borrowable = nullptr;
+    T* t = nullptr;
+    std::swap(borrowable, borrowable_);
+    std::swap(t, t_);
+    return borrowed_ptr<U>(borrowable, t);
+  }
+
+  template <
+      typename U,
+      std::enable_if_t<
+          std::conjunction_v<
+              std::negation<std::is_pointer<U>>,
+              std::negation<std::is_reference<U>>,
+              std::is_convertible<T*, U*>>,
+          int> = 0>
+  operator borrowed_ptr<U>() const& {
     CHECK_NOTNULL(borrowable_)->Reborrow();
     return borrowed_ptr<U>(CHECK_NOTNULL(borrowable_), CHECK_NOTNULL(t_));
+  }
+
+  template <
+      typename U,
+      std::enable_if_t<
+          std::conjunction_v<
+              std::negation<std::is_pointer<U>>,
+              std::negation<std::is_reference<U>>,
+              std::is_convertible<T*, U*>>,
+          int> = 0>
+  operator borrowed_ptr<U>() & {
+    CHECK_NOTNULL(borrowable_)->Reborrow();
+    return borrowed_ptr<U>(CHECK_NOTNULL(borrowable_), CHECK_NOTNULL(t_));
+  }
+
+  template <
+      typename U,
+      std::enable_if_t<
+          std::conjunction_v<
+              std::negation<std::is_pointer<U>>,
+              std::negation<std::is_reference<U>>,
+              std::is_convertible<T*, U*>>,
+          int> = 0>
+  operator borrowed_ptr<U>() && {
+    // Don't reborrow since we're being moved!
+    TypeErasedBorrowable* borrowable = nullptr;
+    T* t = nullptr;
+    std::swap(borrowable, borrowable_);
+    std::swap(t, t_);
+    return borrowed_ptr<U>(borrowable, t);
   }
 
   borrowed_ref reborrow() const {
@@ -367,6 +429,9 @@ class borrowed_ref final {
  private:
   template <typename>
   friend class borrowed_ref;
+
+  template <typename>
+  friend class borrowed_ptr;
 
   template <typename>
   friend class Borrowable;
@@ -424,13 +489,68 @@ class borrowed_ptr final {
               std::negation<std::is_reference<U>>,
               std::is_convertible<T*, U*>>,
           int> = 0>
-  operator borrowed_ptr<U>() const {
+  operator borrowed_ptr<U>() const& {
     if (borrowable_ != nullptr) {
       borrowable_->Reborrow();
       return borrowed_ptr<U>(borrowable_, t_);
     } else {
       return borrowed_ptr<U>();
     }
+  }
+
+  template <
+      typename U,
+      std::enable_if_t<
+          std::conjunction_v<
+              std::negation<std::is_pointer<U>>,
+              std::negation<std::is_reference<U>>,
+              std::is_convertible<T*, U*>>,
+          int> = 0>
+  operator borrowed_ptr<U>() & {
+    if (borrowable_ != nullptr) {
+      borrowable_->Reborrow();
+      return borrowed_ptr<U>(borrowable_, t_);
+    } else {
+      return borrowed_ptr<U>();
+    }
+  }
+
+  template <
+      typename U,
+      std::enable_if_t<
+          std::conjunction_v<
+              std::negation<std::is_pointer<U>>,
+              std::negation<std::is_reference<U>>,
+              std::is_convertible<T*, U*>>,
+          int> = 0>
+  operator borrowed_ptr<U>() && {
+    // Don't reborrow since we're being moved!
+    TypeErasedBorrowable* borrowable = nullptr;
+    T* t = nullptr;
+    std::swap(borrowable, borrowable_);
+    std::swap(t, t_);
+    return borrowed_ptr<U>(borrowable, t);
+  }
+
+  // 'reference()' are a set of helper(s) that return a
+  // 'borrowed_ref<T>' after ensuring borrowable is non-null.
+  borrowed_ref<T> reference() const& {
+    CHECK_NOTNULL(borrowable_)->Reborrow();
+    return borrowed_ref<T>(*CHECK_NOTNULL(borrowable_), *CHECK_NOTNULL(t_));
+  }
+
+  borrowed_ref<T> reference() & {
+    CHECK_NOTNULL(borrowable_)->Reborrow();
+    return borrowed_ref<T>(*CHECK_NOTNULL(borrowable_), *CHECK_NOTNULL(t_));
+  }
+
+  borrowed_ref<T> reference() && {
+    // Don't reborrow since we're being moved!
+    TypeErasedBorrowable* borrowable = nullptr;
+    T* t = nullptr;
+    std::swap(borrowable, CHECK_NOTNULL(borrowable_));
+    std::swap(t, CHECK_NOTNULL(t_));
+    return borrowed_ref<T>(*CHECK_NOTNULL(borrowable), *CHECK_NOTNULL(t));
   }
 
   borrowed_ptr reborrow() const {
